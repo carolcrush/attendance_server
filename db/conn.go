@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+
 	// blank import for MySQL driver
-	// _ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/joho/godotenv"
 )
 
 // Driver名
@@ -16,6 +18,10 @@ const driverName = "mysql"
 var Conn *sql.DB
 
 func init() {
+	e := godotenv.Load(".env")
+	if e != nil {
+		fmt.Printf("読み込み出来ませんでした: %v", e)
+	}
 	/* ===== データベースへ接続する. ===== */
 	// ユーザ
 	user := os.Getenv("MYSQL_USER")
