@@ -31,6 +31,14 @@ type insertAttendanceParams struct {
 	Password string `json:"password"`
 }
 
+type totalAttendance struct {
+	Id     string  `json:"id"`
+	UserId string  `json:"userId"`
+	Name   string  `json:"name"`
+	Start  string  `json:"start"`
+	End    *string `json:"end"`
+}
+
 func hashedUserPassword(password string) string {
 	passwordBytes := []byte(password)
 	hashedPassword := sha256.Sum256(passwordBytes)
@@ -47,6 +55,7 @@ func main() {
 	e.GET("/user", getUsers)
 	e.POST("/user", createUser)
 	e.POST("/attendance", createAttendance)
+	e.GET("/admin", getTotalAttendance)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
@@ -201,4 +210,38 @@ func updateAttendance(id string, time string) error {
 		return err
 	}
 	return nil
+}
+
+func getTotalAttendance(c echo.Context) error {
+	totalAttendances, err := selectTotalAttendance()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "Total attendances not found")
+	}
+	return c.JSON(http.StatusOK, totalAttendances)
+}
+
+func selectTotalAttendance() ([]totalAttendance, error) {
+	rows, err := db.Conn.Query(`
+            SELECT attendance.*, user.name
+            FROM attendance
+            JOIN user ON attendance.user_id = user.id
+        `)
+	if err != nil {
+		log.Println("err", err)
+		return nil, err
+	}
+
+	log.Println("rows", rows)
+
+	var totalAttendances []totalAttendance
+	for rows.Next() {
+		var attendance totalAttendance
+		if err := rows.Scan(&attendance.Id, &attendance.UserId, &attendance.Start, &attendance.End, &attendance.Name); err != nil {
+			log.Println("err", err)
+			return nil, err
+		}
+		log.Println("attendance", attendance)
+		totalAttendances = append(totalAttendances, attendance)
+	}
+	return totalAttendances, nil
 }
