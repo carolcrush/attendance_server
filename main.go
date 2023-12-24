@@ -4,9 +4,11 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"freee/db"
 	"log"
 	"net/http"
+	"regexp"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -46,12 +48,23 @@ func hashedUserPassword(password string) string {
 	return userPassword
 }
 
+func isValidName(name string) error {
+	if len(name) < 3 || len(name) > 255 || !regexp.MustCompile("^[a-zA-Z\\p{Han}]+$").MatchString(name) {
+		return errors.New("ERROR")
+	}
+	return nil
+}
+
+func isValidPassword(password string) error {
+	if len(password) < 8 || len(password) > 255 || !regexp.MustCompile("^[a-zA-Z0-9]+$").MatchString(password) {
+		return errors.New("ERROR")
+	}
+	return nil
+}
+
 func main() {
 	e := echo.New()
 	e.Use(middleware.CORS())
-	// e.GET("/freee", func(c echo.Context) error {
-	// 	return c.JSON(http.StatusOK, "HELLO, WORLD!")
-	// })
 	e.GET("/user", getUsers)
 	e.POST("/user", createUser)
 	e.POST("/attendance", createAttendance)
@@ -65,13 +78,23 @@ func createUser(c echo.Context) error {
 	if err := c.Bind(&user); err != nil {
 		return c.JSON(http.StatusBadRequest, "Pamameter is invalid")
 	}
+
+	e1 := isValidName(user.Name)
+	if e1 != nil {
+		log.Println("err", e1)
+		return c.JSON(http.StatusBadRequest, "Name is invalid")
+	}
+
+	e2 := isValidPassword(user.Password)
+	if e2 != nil {
+		log.Println("err", e2)
+		return c.JSON(http.StatusBadRequest, "Password is invalid")
+	}
+
 	user.Password = hashedUserPassword(user.Password)
-	// passwordBytes := []byte(user.Password)
-	// hashedPassword := sha256.Sum256(passwordBytes)
-	// user.Password = hex.EncodeToString(hashedPassword[:])
 	err := insertUser(&user)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Can not create an user")
+		return c.JSON(http.StatusBadRequest, "ID is invalid")
 	}
 	return c.JSON(http.StatusOK, "OK")
 }
@@ -129,7 +152,7 @@ func createAttendance(c echo.Context) error {
 
 	attendancePassword := hashedUserPassword(insertAttendanceParams.Password)
 	if userPassword != attendancePassword {
-		return c.JSON(http.StatusBadRequest, "incorrect password")
+		return c.JSON(http.StatusBadRequest, "Incorrect password")
 	}
 
 	switch insertAttendanceParams.Kind {
@@ -174,7 +197,6 @@ func insertUser(user *user) error {
 }
 
 func insertAttendance(userId string, time string) error {
-	log.Println("time", time)
 	if _, err := db.Conn.Exec(
 		"INSERT INTO attendance (user_id, start) values (?, ?)",
 		userId,
@@ -231,8 +253,6 @@ func selectTotalAttendance() ([]totalAttendance, error) {
 		return nil, err
 	}
 
-	log.Println("rows", rows)
-
 	var totalAttendances []totalAttendance
 	for rows.Next() {
 		var attendance totalAttendance
@@ -240,7 +260,6 @@ func selectTotalAttendance() ([]totalAttendance, error) {
 			log.Println("err", err)
 			return nil, err
 		}
-		log.Println("attendance", attendance)
 		totalAttendances = append(totalAttendances, attendance)
 	}
 	return totalAttendances, nil
