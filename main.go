@@ -48,16 +48,23 @@ func hashedUserPassword(password string) string {
 	return userPassword
 }
 
+func isValidID(userId string) error {
+	if len(userId) < 1 || len(userId) > 8 || !regexp.MustCompile("^[a-zA-Z0-9]+$").MatchString(userId) {
+		return errors.New("ID ERROR")
+	}
+	return nil
+}
+
 func isValidName(name string) error {
-	if len(name) < 3 || len(name) > 255 || !regexp.MustCompile("^[a-zA-Z\\p{Han}]+$").MatchString(name) {
-		return errors.New("ERROR")
+	if len(name) < 3 || len(name) > 30 || !regexp.MustCompile("^[a-zA-Z\\p{Han}]+$").MatchString(name) {
+		return errors.New("NAME ERROR")
 	}
 	return nil
 }
 
 func isValidPassword(password string) error {
-	if len(password) < 8 || len(password) > 255 || !regexp.MustCompile("^[a-zA-Z0-9]+$").MatchString(password) {
-		return errors.New("ERROR")
+	if len(password) < 8 || len(password) > 20 || !regexp.MustCompile("^[a-zA-Z0-9]+$").MatchString(password) {
+		return errors.New("PASSWORD ERROR")
 	}
 	return nil
 }
@@ -73,10 +80,24 @@ func main() {
 	e.Logger.Fatal(e.Start(":8080"))
 }
 
+func getUsers(c echo.Context) error {
+	users, err := selectUsers()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "Users not found")
+	}
+	return c.JSON(http.StatusOK, users)
+}
+
 func createUser(c echo.Context) error {
 	var user user
 	if err := c.Bind(&user); err != nil {
 		return c.JSON(http.StatusBadRequest, "Pamameter is invalid")
+	}
+
+	e := isValidID(user.Id)
+	if e != nil {
+		log.Println("err", e)
+		return c.JSON(http.StatusBadRequest, "ID is invalid")
 	}
 
 	e1 := isValidName(user.Name)
@@ -97,43 +118,6 @@ func createUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, "ID is invalid")
 	}
 	return c.JSON(http.StatusOK, "OK")
-}
-
-func selectUsers() ([]user, error) {
-	rows, err := db.Conn.Query("SELECT id, name FROM user")
-	if err != nil {
-		log.Println("Error querying user", err)
-		return nil, err
-	}
-	var users []user
-	for rows.Next() {
-		var user user
-		if err := rows.Scan(&user.Id, &user.Name); err != nil {
-			return nil, err
-		}
-		users = append(users, user)
-	}
-	return users, nil
-}
-
-func selectUsersById(userId string) (string, error) {
-	row := db.Conn.QueryRow("SELECT password FROM user WHERE id=?", userId)
-	var password string
-	if err := row.Scan(&password); err != nil {
-		if err == sql.ErrNoRows {
-			return "", err
-		}
-		return "", err
-	}
-	return password, nil
-}
-
-func getUsers(c echo.Context) error {
-	users, err := selectUsers()
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Users not found")
-	}
-	return c.JSON(http.StatusOK, users)
 }
 
 func createAttendance(c echo.Context) error {
@@ -184,6 +168,43 @@ func createAttendance(c echo.Context) error {
 	}
 }
 
+func getTotalAttendance(c echo.Context) error {
+	totalAttendances, err := selectTotalAttendance()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "Total attendances not found")
+	}
+	return c.JSON(http.StatusOK, totalAttendances)
+}
+
+func selectUsers() ([]user, error) {
+	rows, err := db.Conn.Query("SELECT id, name FROM user")
+	if err != nil {
+		log.Println("Error querying user", err)
+		return nil, err
+	}
+	var users []user
+	for rows.Next() {
+		var user user
+		if err := rows.Scan(&user.Id, &user.Name); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+func selectUsersById(userId string) (string, error) {
+	row := db.Conn.QueryRow("SELECT password FROM user WHERE id=?", userId)
+	var password string
+	if err := row.Scan(&password); err != nil {
+		if err == sql.ErrNoRows {
+			return "", err
+		}
+		return "", err
+	}
+	return password, nil
+}
+
 func insertUser(user *user) error {
 	if _, err := db.Conn.Exec(
 		"INSERT INTO user (id, name, password) values (?, ?, ?)",
@@ -232,14 +253,6 @@ func updateAttendance(id string, time string) error {
 		return err
 	}
 	return nil
-}
-
-func getTotalAttendance(c echo.Context) error {
-	totalAttendances, err := selectTotalAttendance()
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Total attendances not found")
-	}
-	return c.JSON(http.StatusOK, totalAttendances)
 }
 
 func selectTotalAttendance() ([]totalAttendance, error) {
