@@ -260,6 +260,7 @@ func selectTotalAttendance() ([]totalAttendance, error) {
             SELECT attendance.*, user.name
             FROM attendance
             JOIN user ON attendance.user_id = user.id
+			ORDER BY attendance.id DESC
         `)
 	if err != nil {
 		log.Println("err", err)
